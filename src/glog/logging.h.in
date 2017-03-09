@@ -499,6 +499,14 @@ GOOGLE_GLOG_DLL_DECL void ShutdownGoogleLogging();
 // Install a function which will be called after LOG(FATAL).
 GOOGLE_GLOG_DLL_DECL void InstallFailureFunction(void (*fail_func)());
 
+// Install a function which will be called before logging a message so that
+// the message may be modified before logging. If the function changes the
+// message, the changed flag should be set to true. The installed function
+// must be thread-safe. Calling this function to install the listener is not
+// thread-safe and should be done before creating log messages.
+GOOGLE_GLOG_DLL_DECL void InstallLogMessageListenerFunction(
+    void (*listener_func)(std::string* message, bool* changed));
+
 class LogSink;  // defined below
 
 // If a non-NULL sink pointer is given, we push this message to that sink.
@@ -710,10 +718,10 @@ DEFINE_CHECK_OP_IMPL(Check_GT, > )
 // to reduce the overhead of CHECK statments by 2x.
 // Real DCHECK-heavy tests have seen 1.5x speedups.
 
-// The meaning of "string" might be different between now and 
+// The meaning of "string" might be different between now and
 // when this macro gets invoked (e.g., if someone is experimenting
 // with other string implementations that get defined after this
-// file is included).  Save the current meaning now and use it 
+// file is included).  Save the current meaning now and use it
 // in the macro.
 typedef std::string _Check_string;
 #define CHECK_OP_LOG(name, op, val1, val2, log)                         \
@@ -1095,6 +1103,10 @@ class GOOGLE_GLOG_DLL_DECL LogStreamBuf : public std::streambuf {
   // Legacy public ostrstream method.
   size_t pcount() const { return pptr() - pbase(); }
   char* pbase() const { return std::streambuf::pbase(); }
+
+  void Reset(char* buf, int len) {
+    setp(buf, buf + len - 2);
+  }
 };
 
 }  // namespace base_logging
@@ -1149,6 +1161,10 @@ public:
     size_t pcount() const { return streambuf_.pcount(); }
     char* pbase() const { return streambuf_.pbase(); }
     char* str() const { return pbase(); }
+
+    void Reset(char* buf, int len) {
+      streambuf_.Reset(buf, len);
+    }
 
   private:
     base_logging::LogStreamBuf streambuf_;
